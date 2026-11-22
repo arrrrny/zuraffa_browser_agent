@@ -1,70 +1,72 @@
-# Contract: BrowserAgent Public API (exposed by this package)
+# Contract: BrowserAgent Public Composition
 
-All types are Dart. Signatures are normative for planning; implementation tasks realize them over pi/Zuraffa primitives.
+This is a composition contract, not a declaration of substitute types for unfinished dependencies. Final Dart type names and signatures for the runtime facade, submissions, watches, tasks, tools, and outcomes are bound from `zuraffa_agent#204/#205`, pi#12, and `zuraffa_browser_core#2` when those dependencies land. This package must not invent `Pi*` aliases or local lookalike records for them.
 
-## Constructor / composition
+## Composition inputs
 
-```dart
-BrowserAgent({
-  required ZuraffaAgentRuntime runtime,        // from zuraffa_agent (pi-based)
-  required BrowserRpcClient browser,           // from zuraffa_browser_core (embedded or bridge)
-  required BrowserAgentPorts ports,            // host-injected adapters (see host-ports.md)
-});
-```
+`BrowserAgent` receives, through explicit constructor/factory injection:
 
-- `runtime` and `browser` are interfaces owned by their packages; this package never constructs concrete WebViews, sockets, or provider clients.
-- No global locator access anywhere in the package (plan §5.4).
+- the runtime facade published by `zuraffa_agent`;
+- the `BrowserRpcClient` published by browser core;
+- browser mission policy and tool/extension factories owned here;
+- host/dependency-owned approval, artifact, audit, telemetry, notification, credential, storage, and redaction ports.
 
-## Mission submission
+The package never constructs concrete WebViews, sockets, provider clients, global service locators, or a second runtime.
 
-```dart
-Future<PiSubmissionOutcome> runMission({
-  required BrowserMissionRequest request,
-});
-```
+## Mission request
 
-`BrowserMissionRequest` (owned here):
+`BrowserMissionRequest` is input configuration owned by this package, not a durable mission/result state machine:
 
-| Field | Type | Notes |
-|-------|------|-------|
-| `policy` | `BrowserMissionPolicy` | See data-model.md; deny-by-default. |
-| `prompt` | `String` | Host mission description. |
-| `outputSchema` | `StructuredOutputSchema?` | Host-provided; BrowserAgent stays domain-blind (FR-017). |
-| `finishTool` | `FinishToolSpec?` | Host-provided finish tool; payload validation is the host's. |
-| `idempotencyKey` | `String?` | Required by the host at replay-unsafe boundaries; carried into durable records. |
+| Field | Contract |
+| --- | --- |
+| `policy` | `BrowserMissionPolicy`; default-deny tools and explicit scopes/budgets. |
+| `prompt` | Host mission description. |
+| `outputSchema` | Optional host-provided structured-output schema; interpreted by the host, not BrowserAgent. |
+| `finishTool` | Optional host-provided finish-tool specification and validator. |
+| `idempotencyKey` | Optional host key required at replay-unsafe persistence/effect boundaries. |
 
-Returns the pi/Zuraffa submission outcome object unchanged — never a new result type (FR-001).
+No request field contains an order, SKU, seller, price, or other product-domain type.
 
-## Tool surface
+## Submission and outcome identity
 
-```dart
-Iterable<AgentTool> resolveTools(BrowserMissionPolicy policy);
-```
+`runMission` delegates submission to the injected runtime and returns the exact future/outcome object that facade publishes. Its return type is therefore dependency-owned and is finalized only after the wrapper contract is available.
 
-- Pure function of (neutral catalog, policy): filters by allowlist, risk hints, advertised transport capabilities; unknown names or unsupported capabilities → `PlanningFailed` typed error naming the tool/capability (FR-008).
-- Returned tools carry catalog schemas verbatim; argument validation happens once, in the dispatcher (FR-006, FR-007).
+Rules:
 
-## Lifecycle / durability
+- No `BrowserAgentResult`, `BrowserMissionResult`, `PiOutcome`, `PiSubmissionOutcome`, wrapper enum, or “inner outcome” record is introduced.
+- The host can resume, watch, inspect, and abort through the same runtime conversation/submission/task identities used for non-browser missions.
+- `watches()` and related observation methods return the runtime's own stream/event types unchanged; no `PiWatchEvent` substitute is declared.
+- `dispose()` releases only resources owned by this composition and does not erase durable runtime state.
 
-```dart
-Stream<PiWatchEvent> watches();          // pi watches, re-exposed
-Future<void> dispose();                  // releases browser transport handles it owns; durable state untouched
-```
+## Tool resolution
 
-- Resume after restart: the host re-submits or resumes via pi primitives; `BrowserAgent` reads durable mission policy/state through the injected `Storage` — it owns no scheduler.
+Tool resolution is a pure planning operation over the core neutral catalog, advertised transport capabilities, and mission policy:
 
-## Error taxonomy (typed outcomes, never raw exceptions to hosts)
+- it yields the agent-tool type owned by pi/Zuraffa;
+- catalog schemas are carried unchanged;
+- browser argument validation and operation bodies stay in core;
+- unknown, unallowed, or unsupported capabilities fail before a model/provider call;
+- no local wrapper duplicates a tool result or capability descriptor.
 
-| Outcome | Raised when |
-|---------|-------------|
-| `PlanningFailed(reason)` | capability/allowlist/schema resolution failure before any model call |
-| `BudgetExhausted(dimension, counters)` | any mission budget tripped (durable) |
-| `RedactionFailed(scope)` | sanitizer error — fail closed, no egress |
-| `ChallengeParked(kind, parkedToolCallId)` | CAPTCHA/login/2FA/human decision parked durably |
-| `ApprovalRequired(normalizedArgs, scope)` | gate trip; re-evaluated after wake/extension change |
-| `TransportUnsupported(capability)` | advertised-capability mismatch (normally caught at planning) |
-| `PiOutcome(inner)` | wrapped pi/Zuraffa runtime outcomes (finished/aborted/failed) |
+## Failure and parked-work representation
+
+Failures, budget exhaustion, redaction refusal, approval requirements, unsupported capabilities, and challenge waits use the pi/Zuraffa task/submission/tool-outcome mechanisms. BrowserAgent contributes browser-namespaced reason codes and sanitized metadata through those mechanisms; it does not define a parallel result union or exception taxonomy.
+
+| Reason | Required semantics |
+| --- | --- |
+| `browser.planning_failed` | Capability/allowlist/schema resolution failed before model execution; includes only sanitized reason metadata. |
+| `browser.budget_exhausted` | Names the exhausted dimension and durable counter values. |
+| `browser.redaction_failed` | Fails closed before model egress; never carries unredacted content. |
+| `browser.challenge_parked` | References the dependency-owned parked tool/task and host escalation; no autonomous wake or bypass. |
+| `browser.approval_required` | References normalized arguments and scope using the governance approval primitive; gates re-run after wake/extension change. |
+| `browser.transport_unsupported` | Uses the core capability error during planning rather than failing after model execution. |
+
+These are reason identifiers inside dependency-owned outcomes, not classes declared by this package.
+
+## Domain-specific privacy without domain knowledge
+
+Redaction/minimization rules are host-injected policy values. A host may supply rules for order identifiers, addresses, or other sensitive fields; BrowserAgent applies them opaquely and never learns an order schema or imports the host's domain package. Artifact references returned by the Zuraffa artifact port are passed through unchanged rather than redefined locally.
 
 ## Non-goals visible in the surface
 
-No method on `BrowserAgent` accepts or returns domain types (orders, SKUs, sellers, prices), no method exposes raw cookies/credentials/session payloads, and no method performs arbitrary JS evaluation, cookie export, profile deletion, or account mutation.
+No method accepts or returns product-domain entities, exposes raw cookies/credentials/session payloads, or enables arbitrary evaluation, cookie export, profile deletion, or account mutation by default.

@@ -9,7 +9,7 @@ For each capability in the neutral catalog:
 1. **Descriptor fidelity** — the agent tool built from the descriptor exposes the descriptor's name, input schema (byte-identical), risk hint, and result contract.
 2. **Happy path** — invoke through the transport with a valid payload; result matches the descriptor's result contract.
 3. **Validation rejection** — malformed payload fails with the core's error taxonomy, before the browser operation body runs.
-4. **Capability advertisement** — a transport that does not advertise the capability fails at planning with `TransportUnsupported`, not mid-mission.
+4. **Capability advertisement** — a transport that does not advertise the capability fails at planning through the core/runtime outcome channel with reason `browser.transport_unsupported`, not mid-mission; no local transport-result class is introduced.
 5. **Policy interaction** — mutating/risk-flagged capabilities are denied by default under a restricted policy and require allowlist + approval.
 
 ## Matrix

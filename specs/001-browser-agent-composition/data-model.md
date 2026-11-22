@@ -15,7 +15,7 @@ The durable policy record for one mission. Serialized through the pi `Storage` a
 | `profileScope` | `Set<ProfileId>` | Browser profiles the mission may touch. |
 | `pageScope` | `PageScopeRule` | Which pages/tabs are addressable; per-page sequential execution (FR-010). |
 | `budgets` | `MissionBudgets` | Turn / tool-call / wall-clock / page-count / output-size (FR-011). Durable; checked after restart. |
-| `redactionProfile` | `RedactionProfile` | Minimization + order-PII redaction rules; fail-closed on error (FR-015). |
+| `redactionProfile` | `RedactionProfile` | Minimization + host-supplied PII redaction rules; fail-closed on error (FR-015). |
 | `artifactPolicy` | `ArtifactPolicy` | Inline-size threshold; larger results become artifact references (FR-016). |
 | `approvalRequired` | `ApprovalRequirement` | Which classes (mutating, scope-crossing) require gates; bound to normalized args + scope (FR-013). |
 | `schemaVersion` | `int` | Forward-compatible deserialization. |
@@ -32,13 +32,13 @@ Validation: `allowedTools ⊆ catalog tool names`; `budgets` all positive; `reda
 | `maxPages` | `int` | finite |
 | `maxOutputBytes` | `int` | finite |
 
-Exhaustion → `BudgetExhausted` typed outcome naming the exhausted dimension and the durable counter values.
+Exhaustion uses the dependency-owned outcome channel with reason `browser.budget_exhausted`, the exhausted dimension, and durable counter values; this package declares no `BudgetExhausted` result class.
 
 ### RedactionProfile
 
 - `minimizePageContent`: structural minimization before model egress (strip non-essential DOM/UI text; keep the extraction-relevant content).
-- `piiRules`: order-PII matchers (order ids, addresses, emails, phones, session ids) applied in addition to credential patterns.
-- `failClosed`: always true; a rule engine error produces `RedactionFailed`, never passthrough.
+- `piiRules`: opaque host-supplied matchers, optionally classifying order ids, addresses, emails, phones, or session ids; BrowserAgent does not interpret those values as domain entities.
+- `failClosed`: always true; a rule engine error produces a dependency-owned outcome with reason `browser.redaction_failed`, never passthrough or a local `RedactionFailed` class.
 
 ### ArtifactPolicy
 
@@ -54,16 +54,6 @@ Exhaustion → `BudgetExhausted` typed outcome naming the exhausted dimension an
 | `hostPort` | `HumanEscalationPort` | Invoked with normalized context; never with secrets. |
 | `signal` | pi signal/deadline | Durable park; resume only via host signal (FR-012, FR-018). |
 
-### ArtifactReference
-
-| Field | Type |
-|-------|------|
-| `store` | `AgentArtifactStore` (host port) |
-| `id` | `String` |
-| `mimeType` | `String` |
-| `byteSize` | `int` |
-| `retention` | policy from zuraffa_agent#205 adapters |
-
 ## Consumed (declared by dependencies — never redefined here)
 
 | Type | Owner | Consumed for |
@@ -71,7 +61,7 @@ Exhaustion → `BudgetExhausted` typed outcome naming the exhausted dimension an
 | Neutral capability descriptor (name, description, input schema, mutability/risk hint, required capability, result contract) | zuraffa_browser_core#2 | Tool factory input (FR-006). |
 | `BrowserRpcClient` + `EmbeddedBrowserRpcClient` / `BridgeBrowserRpcClient` + capability discovery | zuraffa_browser_core#2 | The transport seam (FR-008, FR-019). |
 | pi `Storage`, `Extension`, `Task`, `Submission`, tool results, messages, signals, parked tools, approval gates | pi (via zuraffa_agent) | Everything durable/executional (FR-003, FR-018). |
-| `beforeTool` / `afterTool` / provider-request hook contracts, approval ports, artifact store, audit/telemetry adapters, `AgentCredentialProvider`, human-notification port | zuraffa_agent#205 | Governance composition (FR-020, FR-021). |
+| `beforeTool` / `afterTool` / provider-request hook contracts, approval ports, artifact store and its artifact-reference values, audit/telemetry adapters, `AgentCredentialProvider`, human-notification port | zuraffa_agent#205 | Governance composition and oversized-result references (FR-016, FR-020, FR-021). |
 
 If a needed shape is absent from a dependency's declared contract, the gap is filed against that repo — this package does not define a local variant (spec Assumptions).
 

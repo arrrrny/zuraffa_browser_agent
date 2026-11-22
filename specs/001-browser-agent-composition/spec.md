@@ -44,9 +44,9 @@ The browser core publishes neutral capability descriptors (stable name, descript
 
 ### User Story 3 - Security defaults: deny-by-default, budgets, redaction, escalation (Priority: P1)
 
-Every restricted mission runs with default-deny tool policy, explicit allowlists, domain/profile/page scopes, per-page sequential execution, and turn/tool/time/page/output budgets. CAPTCHA, login, 2FA, and human decisions escalate to host ports and durably park the work. Cookies, credentials, session payloads, and unauthorized page/order PII never reach transcripts, telemetry, exceptions, or artifacts.
+Every restricted mission runs with default-deny tool policy, explicit allowlists, domain/profile/page scopes, per-page sequential execution, and turn/tool/time/page/output budgets. CAPTCHA, login, 2FA, and human decisions escalate to host ports and durably park the work. Cookies, credentials, session payloads, and unauthorized page PII never reach transcripts, telemetry, exceptions, or artifacts.
 
-**Why this priority**: This package processes authenticated pages and order data; a single leak or autonomous-bypass path makes the whole composition unsafe to embed. Security defaults are release-blocking, not hardening.
+**Why this priority**: This package may process authenticated pages and sensitive host data; a single leak or autonomous-bypass path makes the whole composition unsafe to embed. Security defaults are release-blocking, not hardening.
 
 **Independent Test**: Drive a scripted restricted mission through pure-Dart fakes and assert: an unlisted tool is denied; a budget (turn, tool-call, wall-clock, page-count, output-size) trips and produces a typed outcome that survives restart; a parked challenge never auto-bypasses; and a canary cookie/session/PII value never appears in transcript, telemetry, exception, or artifact outputs.
 
@@ -55,7 +55,7 @@ Every restricted mission runs with default-deny tool policy, explicit allowlists
 1. **Given** a mission with no allowlist, **When** any browser tool is requested, **Then** the tool is denied and no browser execution occurs.
 2. **Given** a mission that exhausts its turn/tool/time/page/output budget, **When** the budget is checked after restart and disposal, **Then** the budget state is durable and the outcome is typed (not a crash or silent continuation).
 3. **Given** a CAPTCHA, login, or 2FA wall, **When** the challenge fires, **Then** the relevant tool/task is durably parked, the host escalation port is invoked, and no autonomous bypass or credential harvesting is attempted.
-4. **Given** a page containing order PII and a canary session cookie, **When** results flow to model egress, transcript, telemetry, exception, or artifact, **Then** minimization and redaction remove them, and a failed sanitizer fails closed with a typed outcome instead of leaking unredacted content.
+4. **Given** a page containing host-classified PII and a canary session cookie, **When** results flow to model egress, transcript, telemetry, exception, or artifact, **Then** minimization and redaction remove them, and a failed sanitizer fails closed with a typed outcome instead of leaking unredacted content.
 5. **Given** a mutating action or a scope crossing (domain/profile/page), **When** the action is about to run, **Then** an approval gate bound to normalized tool arguments and scope is required, and the gate re-runs after wake or extension change.
 
 ---
@@ -99,7 +99,7 @@ Every restricted mission runs with default-deny tool policy, explicit allowlists
 - **FR-012**: CAPTCHA, login, 2FA, and required human decisions MUST escalate to host ports and durably park the relevant tool/task; no autonomous bypass or credential harvesting may exist anywhere in the package.
 - **FR-013**: Approval gates MUST bind to normalized tool arguments and scope, MUST be required for mutating actions and scope crossings, and MUST re-run after wake or extension change.
 - **FR-014**: Cookies, credentials, session payloads, and secure-store values MUST be kept out of transcripts, telemetry, exceptions, and artifacts by default.
-- **FR-015**: Page content MUST be minimized before model egress and redacted with domain-aware (order-PII) rules, not only credential regexes; a failed sanitizer MUST fail closed with a typed outcome and unredacted content MUST never fall through to the model.
+- **FR-015**: Page content MUST be minimized before model egress using host-injected redaction/minimization policies, which may classify host-classified PII or other host-specific sensitive data without BrowserAgent learning that domain; a failed sanitizer MUST fail closed through the dependency-owned typed outcome channel and unredacted content MUST never fall through to the model.
 - **FR-016**: Browser artifacts (screenshots, PDFs, downloads, large page results) MUST be handled through artifact references and oversized-result policy rather than being inlined into transcripts.
 
 #### Host integration and parity
@@ -125,7 +125,7 @@ Every restricted mission runs with default-deny tool policy, explicit allowlists
 
 - **SC-001**: A host can complete one end-to-end scripted browser mission (navigate → read → structured finish) against pure-Dart in-memory adapters with zero production browser or network dependencies, and the mission returns the pi/Zuraffa submission outcome unchanged.
 - **SC-002**: 100% of restricted-mission denials, budget trips, and challenge parks are observable as typed outcomes in tests — zero crashes, zero silent continuations, zero autonomous bypasses across the whole test matrix.
-- **SC-003**: A canary corpus (cookies, credentials, session payloads, order PII) injected into fixtures appears in zero transcripts, telemetry events, exception messages, or artifacts after a full mission + restart + sanitizer-failure test run.
+- **SC-003**: A canary corpus (cookies, credentials, session payloads, host-classified PII) injected into fixtures appears in zero transcripts, telemetry events, exception messages, or artifacts after a full mission + restart + sanitizer-failure test run.
 - **SC-004**: The package contains no agent loop, provider client, transcript store, compaction, durable scheduler, WebView code, or domain entity — verified by an architecture fitness test over imports and public exports.
 - **SC-005**: The same tool contract suite passes against both `EmbeddedBrowserRpcClient` and `BridgeBrowserRpcClient` for every shared capability, and every unsupported capability is advertised and fails during planning (zero post-model-call capability failures).
 - **SC-006**: A single neutral catalog fixture generates the full agent tool surface with byte-identical input schemas to the catalog, and no schema or browser operation body is duplicated in this package.
@@ -139,6 +139,7 @@ Every restricted mission runs with default-deny tool policy, explicit allowlists
 - Browser platform scope is macOS and iOS only; Android is excluded by product decision.
 - The store app (`zuraffa_browser`) keeps its MCP host, bridge wiring, and GUI; this package supplies the agent surface over the same canonical dispatcher.
 - Hosts are `zik_zak` (first consumer) and future embedded apps; domain models (orders, SKUs, sellers, prices) stay in hosts.
+- Domain-specific redaction matchers, minimization policies, output schemas, and validators are host-injected values. BrowserAgent applies them opaquely and never learns an order or other product-domain schema.
 - Restricted mission defaults are the norm; any permissive mode is an explicit host opt-in that still cannot enable arbitrary evaluation, cookie export, profile deletion, or account-mutating tools.
 - Durable replay cannot make arbitrary merchant side effects exactly-once; replay-unsafe boundaries require host idempotency keys.
 - `pub.zuzu.dev` is the controlled prerelease channel; pub.dev publication is a separate release decision.

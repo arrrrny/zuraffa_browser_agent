@@ -18,7 +18,7 @@ Serialized forms are JSON-compatible maps persisted through the pi `Storage` ada
     "maxPages": 5,
     "maxOutputBytes": 1048576
   },
-  "redactionProfile": { "minimizePageContent": true, "orderPii": true, "failClosed": true },
+  "redactionProfile": { "minimizePageContent": true, "hostPolicyRef": "host-redaction-profile", "failClosed": true },
   "artifactPolicy": { "inlineMaxBytes": 262144 },
   "approvalRequired": { "mutating": true, "scopeCrossing": true }
 }
@@ -26,9 +26,9 @@ Serialized forms are JSON-compatible maps persisted through the pi `Storage` ada
 
 Validation (planning time):
 
-- `allowedTools` entries must exist in the neutral catalog; unknown → `PlanningFailed`.
+- `allowedTools` entries must exist in the neutral catalog; unknown entries fail through the dependency-owned planning outcome before model execution.
 - `budgets.*` must be positive and finite.
-- `redactionProfile.failClosed` is always true (no off switch).
+- `redactionProfile.failClosed` is always true (no off switch); `hostPolicyRef` is an opaque host policy reference, not a BrowserAgent order/domain schema.
 - `pageScope.sequentialPerPage` defaults true for restricted missions.
 
 ## Challenge/escalation record
@@ -45,17 +45,9 @@ Validation (planning time):
 
 Resume is only via the host signal; deadline expiry produces a typed timeout outcome, never an auto-bypass.
 
-## ArtifactReference
+## Artifact references
 
-```json
-{
-  "store": "AgentArtifactStore",
-  "id": "art-9f2",
-  "mimeType": "image/png",
-  "byteSize": 184320,
-  "retention": "policy:agent-artifacts"
-}
-```
+Artifact references are returned by the `zuraffa_agent` artifact port and passed through unchanged. This package does not declare or persist a parallel `ArtifactReference` type.
 
 ## State transitions
 

@@ -41,7 +41,7 @@ All NEEDS CLARIFICATION items from the plan's Technical Context are resolved her
 
 ## D7 — Redaction and minimization
 
-- **Decision**: Page content is minimized before model egress; redaction is domain-aware (order PII: order numbers, addresses, emails, phone numbers, session identifiers) in addition to credential regexes. Cookies, credentials, session payloads, secure-store values are excluded from transcripts, telemetry, exceptions, artifacts by construction (allowlist of what may be logged, not denylist). A sanitizer failure fails closed with a typed outcome.
+- **Decision**: Page content is minimized before model egress through host-injected redaction/minimization policies. A host may classify order numbers, addresses, emails, phone numbers, session identifiers, or other sensitive fields; BrowserAgent applies those rules opaquely and never learns the host's domain schema. Cookies, credentials, session payloads, and secure-store values are excluded from transcripts, telemetry, exceptions, and artifacts by construction (allowlist of what may be logged, not denylist). A sanitizer failure fails closed through the dependency-owned typed outcome channel.
 - **Rationale**: Plan §9.4, §13 ("Generic secret redaction is insufficient without domain-aware minimization"); issue #1 acceptance criterion.
 - **Alternatives considered**: regex-only redaction — rejected; post-hoc log scrubbing — rejected (leak already happened).
 
